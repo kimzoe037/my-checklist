@@ -39,7 +39,7 @@ def get_color(importance):
 def sanitize_id(text):
     return re.sub(r'[^a-zA-Z0-9가-힣]', '', text)
 
-# 엑셀 로드 함수
+# [복구] 이전 엑셀 로드 규칙 그대로 적용 (입력 단어가 포함된 시트를 찾아 데이터 추출)
 def load_excel_template(keyword):
     file_name = 'Checkmaster.xlsx'
     if not os.path.exists(file_name):
@@ -47,11 +47,19 @@ def load_excel_template(keyword):
     try:
         excel_file = pd.ExcelFile(file_name)
         target_sheet = None
+        
+        # 입력받은 카테고리(예: 상하이 여행준비)에 엑셀 시트 이름(예: 여행)이 포함되어 있는지 검사
         for sheet in excel_file.sheet_names:
-            if keyword in sheet:
+            if sheet in keyword or keyword in sheet:
                 target_sheet = sheet
                 break
+                
+        # 만약 딱 맞는 시트가 없으면 첫 번째 시트라도 기본으로 가져옵니다
+        if not target_sheet and len(excel_file.sheet_names) > 0:
+            target_sheet = excel_file.sheet_names[0]
+            
         if not target_sheet: return [] 
+        
         df = pd.read_excel(file_name, sheet_name=target_sheet, header=None)
         category_items = []
         for i, row in df.iterrows():
@@ -95,10 +103,8 @@ if st.session_state.step == 1:
                 for cat in input_list:
                     if cat not in st.session_state.items_data:
                         st.session_state.cat_dates[cat] = date.today() + timedelta(days=10)
-                        if '여행' in cat: st.session_state.items_data[cat] = load_excel_template('여행')
-                        elif '시험' in cat: st.session_state.items_data[cat] = load_excel_template('시험')
-                        elif '시공' in cat: st.session_state.items_data[cat] = load_excel_template('시공')
-                        else: st.session_state.items_data[cat] = []
+                        # 입력값(cat)을 기반으로 이전 엑셀 템플릿 로더 호출
+                        st.session_state.items_data[cat] = load_excel_template(cat)
                 st.session_state.step = 2
                 st.rerun()
 
