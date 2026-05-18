@@ -14,15 +14,7 @@ def apply_custom_style():
         html, body, [class*="st-"] { font-size: 18px; }
         h1 { font-family: 'Pretendard', sans-serif; font-weight: 800; color: #2c3e50; font-size: 2.5rem !important; }
         .step1-container { text-align: center; max-width: 600px; margin: 0 auto; padding-top: 20px; }
-        .nav-bar { background-color: rgba(93, 64, 55, 0.1); padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 10px; border: 1px solid #d7ccc8; }
-        .nav-item { padding: 5px 15px; background-color: #5d4037; color: white !important; border-radius: 20px; text-decoration: none; font-size: 16px; font-weight: bold; }
-        .theme-header { margin-top: 40px; margin-bottom: 25px; padding-bottom: 12px; border-bottom: 3px solid #5d4037; color: #3e2723; }
-        div[data-testid="stCheckbox"] { padding: 15px 20px; margin-bottom: 12px; background-color: rgba(255, 255, 255, 0.7); border-radius: 8px; border: 1px solid #d7ccc8; }
-        div[data-testid="stCheckbox"] label p { font-size: 20px !important; font-weight: 500; }
         .alert-box { background-color: #fff3cd; border-left: 5px solid #ffca28; padding: 20px; border-radius: 5px; margin-bottom: 20px; }
-        .preview-paper { background-color: white; width: 100%; max-width: 800px; padding: 40px; margin: 0 auto; box-shadow: 0 0 10px rgba(0,0,0,0.1); color: black; border: 1px solid #ddd; }
-        .preview-theme { font-size: 20px; font-weight: bold; border-bottom: 2px solid #333; margin-top: 30px; padding-bottom: 5px; }
-        .preview-item { font-size: 16px; margin: 12px 0; border-bottom: 1px solid #eee; padding-bottom: 5px; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -38,7 +30,6 @@ def get_color(importance):
 def sanitize_id(text):
     return re.sub(r'[^a-zA-Z0-9가-힣]', '', text)
 
-# 자동 매칭 로직 (이전 코드의 시트 매칭 로직 유지)
 def load_excel_template(keyword):
     file_name = 'Checkmaster.xlsx'
     if not os.path.exists(file_name): return []
@@ -47,17 +38,15 @@ def load_excel_template(keyword):
         target_sheet = None
         user_input = keyword.strip()
         
+        # 시트 매칭 로직
         for sheet in excel_file.sheet_names:
             sheet_name_clean = sheet.strip()
-            # 입력값과 시트명 간의 포함 관계를 통해 시트 찾기
             if sheet_name_clean in user_input or user_input in sheet_name_clean:
                 target_sheet = sheet
                 break
         
-        # 키워드 기반 예외 처리 (건축시공, 여행준비, 시험준비 등)
         if not target_sheet:
-            keywords = ["시공", "여행", "시험"]
-            for k in keywords:
+            for k in ["시공", "여행", "시험"]:
                 if k in user_input:
                     for sheet in excel_file.sheet_names:
                         if k in sheet: target_sheet = sheet; break
@@ -79,18 +68,16 @@ def load_excel_template(keyword):
         return category_items
     except Exception: return []
 
-# 상태 관리 초기화
 if 'step' not in st.session_state: st.session_state.step = 1  
 if 'items_data' not in st.session_state: st.session_state.items_data = {}  
 if 'cat_dates' not in st.session_state: st.session_state.cat_dates = {}  
 
-# STEP 1
 if st.session_state.step == 1:
     st.markdown("<div class='step1-container'>", unsafe_allow_html=True)
     if os.path.exists("character.png"): st.image("character.png", width=200)
     st.title("Checklist")
     with st.form(key="step1_form"):
-        categories_input = st.text_input("카테고리 입력", placeholder="예: 상하이 여행준비, 전공시험준비")
+        categories_input = st.text_input("카테고리 입력 (예: 상하이 여행준비, 전공시험준비)")
         if st.form_submit_button("시작하기"):
             for cat in [c.strip() for c in categories_input.split(",") if c.strip()]:
                 st.session_state.cat_dates[cat] = date.today() + timedelta(days=10)
@@ -98,30 +85,25 @@ if st.session_state.step == 1:
             st.session_state.step = 2
             st.rerun()
 
-# STEP 2
 elif st.session_state.step == 2:
-    sheet_names = list(st.session_state.items_data.keys())
     if st.button("초기화"): st.session_state.clear(); st.session_state.step = 1; st.rerun()
-    tabs = st.tabs(sheet_names)
+    tabs = st.tabs(list(st.session_state.items_data.keys()))
     for idx, tab in enumerate(tabs):
         with tab:
-            cat = sheet_names[idx]
+            cat = list(st.session_state.items_data.keys())[idx]
             items = st.session_state.items_data.get(cat, [])
-            today = date.today()
-            target_date = st.session_state.cat_dates.get(cat, today)
-            d_day = (target_date - today).days 
-            
-            # 1. 진행률 바 (복구)
-            done = sum(1 for item in items if st.session_state.get(item['id'], False))
             total = len(items)
-            st.write(f"🏗️ **전체 진행률: {done/total*100:.1f}%** ({done}/{total})")
-            st.progress(done/total if total > 0 else 0)
+            done = sum(1 for item in items if st.session_state.get(item['id'], False))
             
-            # 2. D-Day 알림 (3일 전부터 당일까지)
+            # 안전한 진행률 계산
+            prog = (done / total) if total > 0 else 0
+            st.write(f"🏗️ **전체 진행률: {prog*100:.1f}%** ({done}/{total})")
+            st.progress(prog)
+            
+            d_day = (st.session_state.cat_dates.get(cat, date.today()) - date.today()).days
             if 0 <= d_day <= 3:
-                st.markdown(f'<div class="alert-box">⚠️ <b>D-{d_day if d_day > 0 else "Day"}!</b> 마감일이 얼마 남지 않았습니다!</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="alert-box">⚠️ <b>D-{d_day if d_day > 0 else "Day"}!</b> 마감이 얼마 남지 않았습니다!</div>', unsafe_allow_html=True)
             
-            # 3. 항목 및 기능들
             edit_mode = st.toggle("🛠️ 편집 모드", key=f"ed_{cat}")
             themes = sorted(list(set(item['theme'] for item in items)))
             for theme in themes:
