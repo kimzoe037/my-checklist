@@ -49,39 +49,46 @@ def get_color(importance):
 def sanitize_id(text):
     return re.sub(r'[^a-zA-Z0-9가-힣]', '', text)
 
-# 엑셀에서 특정 키워드에 맞는 데이터를 찾아와 기본값 리스트를 만들어주는 함수
+# [복구 완료] 엑셀 파일(Checkmaster.xlsx)에서 데이터를 읽어와서 리스트를 만들어주는 함수
 def load_excel_template(keyword):
     file_name = 'Checkmaster.xlsx'
+    
+    # 만약 배포 환경에 엑셀 파일이 없다면 빈 리스트 반환 (에러 방지)
+    if not os.path.exists(file_name):
+        return []
+        
     try:
         excel_file = pd.ExcelFile(file_name)
         target_sheet = None
+        
+        # 시트 이름 중 키워드(여행, 시공, 시험)가 포함된 시트 찾기
         for sheet in excel_file.sheet_names:
             if keyword in sheet:
                 target_sheet = sheet
                 break
         
         if not target_sheet:
-            if keyword in excel_file.sheet_names:
-                target_sheet = keyword
-            else:
-                return [] 
+            return [] 
 
+        # 헤더 없이 데이터 읽어오기
         df = pd.read_excel(file_name, sheet_name=target_sheet, header=None)
         category_items = []
+        
         for i, row in df.iterrows():
             if len(row) < 4: continue
-            content = str(row[2]).strip()
+            content = str(row[2]).strip() # 3번째 열: 체크 항목 내용
+            
+            # 유효한 내용만 필터링
             if not content or content in ['체크 항목', '내용', 'nan', 'None']: continue
             
             category_items.append({
                 'id': f"{sanitize_id(target_sheet)}_{i}_{datetime.now().timestamp()}", 
-                'theme': str(row[1]) if pd.notna(row[1]) else "기본",
+                'theme': str(row[1]) if pd.notna(row[1]) else "기본", # 2번째 열: 소분류 테마
                 'content': content,
-                'importance': str(row[3]) if pd.notna(row[3]) else '중'
+                'importance': str(row[3]) if pd.notna(row[3]) else '중' # 4번째 열: 중요도
             })
         return category_items
     except Exception as e:
-        st.error(f"엑셀 템플릿을 불러오는 중 오류 발생: {e}")
         return []
 
 # 3. 세션 상태 및 화면 전환 변수 초기화
@@ -96,14 +103,11 @@ if 'cat_dates' not in st.session_state:
 # STEP 1: 첫 진입 화면 (무엇을 만들겠습니까?)
 # ==========================================
 if st.session_state.step == 1:
-    # 중앙 정렬을 위한 컨테이너 시작
     st.markdown("<div class='step1-container'>", unsafe_allow_html=True)
     
-    # [수정 완료] 흰색 원형 테두리를 완전히 없애고, 보내주신 곰돌이 이미지만 아담하게(width=200) 중앙 배치
-    # 실행 환경에 있는 이미지 파일명에 맞게 "character.png"를 수정해서 쓰세요. (예: bear.png)
+    # 테두리 없는 곰돌이 캐릭터 이미지 중앙 배치
     image_path = "character.png" 
     if os.path.exists(image_path):
-        # 대형 박스나 원형 테두리 없이 이미지만 깔끔하게 표출
         st.image(image_path, width=200)
     else:
         st.markdown("<h1 style='font-size: 60px; margin: 0;'>📋</h1>", unsafe_allow_html=True)
@@ -126,9 +130,10 @@ if st.session_state.step == 1:
                 
                 for cat in input_list:
                     if cat not in st.session_state.items_data:
-                        # 초기 생성 시 기본 목표 날짜를 오늘로부터 10일 뒤로 세팅 (예: 오늘 18일 -> 기본값 28일)
+                        # 마감일 기본값: 오늘로부터 10일 뒤 세팅
                         st.session_state.cat_dates[cat] = date.today() + timedelta(days=10)
                         
+                        # [복구 완료] 입력된 단어에 '여행', '시험', '시공'이 포함되어 있으면 엑셀 템플릿 로드
                         if '여행' in cat:
                             st.session_state.items_data[cat] = load_excel_template('여행')
                         elif '시험' in cat:
@@ -167,13 +172,12 @@ elif st.session_state.step == 2:
             current_items = st.session_state.items_data.get(cat, [])
             themes = sorted(list(set(item['theme'] for item in current_items)))
             
-            # --- [수정 완료] 사용자가 설정한 목표 날짜에 맞춰 실시간으로 D-Day 계산 ---
+            # --- 실시간 D-Day 계산 및 연동 ---
             today = date.today()
             if cat in st.session_state.cat_dates:
                 target_date = st.session_state.cat_dates[cat]
-                d_day = (target_date - today).days # 설정일(예: 28일) - 오늘(예: 18일) = 10일
+                d_day = (target_date - today).days 
                 
-                # 남은 일수에 맞춰 D-day 텍스트 동적 변경 (D-2, D-10 완벽 적용)
                 if d_day > 0:
                     d_day_text = f"<b>{d_day}일</b> 남았습니다. (D-{d_day})"
                 elif d_day == 0:
@@ -196,7 +200,7 @@ elif st.session_state.step == 2:
             # 상단 제목 및 미리보기 토글
             col_t1, col_t2 = st.columns([3, 1])
             with col_t1:
-                st.title(f" {cat.upper()} LIST")
+                st.title(f"{cat.upper()} LIST")
             with col_t2:
                 show_preview = st.toggle("🔍 인쇄 미리보기 모드", key=f"prev_{cat}")
 
@@ -238,7 +242,6 @@ elif st.session_state.step == 2:
                     else:
                         st.info("💡 아래 ➕ 버튼을 눌러 소분류(테마)와 체크리스트 세부 내용을 추가해 보세요!")
                 with col_p2:
-                    # 설정값을 바꾸면 위의 D-day 문구가 실시간 연동되어 즉각 바뀝니다.
                     saved_date = st.session_state.cat_dates.get(cat, date.today())
                     st.session_state.cat_dates[cat] = st.date_input(f"📅 {cat} 총 마감일", value=saved_date, key=f"cat_date_{cat}")
 
