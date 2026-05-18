@@ -142,8 +142,8 @@ elif st.session_state.step == 2:
                 if themes:
                     nav_html = '<div class="nav-bar">'
                     for theme in themes: nav_html += f'<a href="#{sanitize_id(theme)}" class="nav-item"># {theme}</a>'
-                    nav_html += '</div>'
-                    st.markdown(nav_html, unsafe_allow_html=True)
+                    nav_bar_end = '</div>'
+                    st.markdown(nav_html + nav_bar_end, unsafe_allow_html=True)
                 done = sum(1 for item in current_items if st.session_state.get(item['id'], False))
                 total = len(current_items)
                 col_p1, col_p2 = st.columns([2, 1])
@@ -167,7 +167,8 @@ elif st.session_state.step == 2:
                                 st.session_state.items_data[cat].append({'id': f"new_{sanitize_id(cat)}_{datetime.now().timestamp()}", 'theme': add_theme.strip() if add_theme.strip() else "기본", 'content': new_content, 'importance': new_imp})
                                 st.rerun()
                 for theme in themes:
-                    st.markdown(f'<div id="{sanitize_id(theme)}"></div><div class='theme-header'><h2>📍 {theme}</h2></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div id="{sanitize_id(theme)}"></div>', unsafe_allow_html=True)
+                    st.markdown(f"<div class='theme-header'><h2>📍 {theme}</h2></div>", unsafe_allow_html=True)
                     cols = st.columns(2)
                     for i, item in enumerate([i for i in current_items if i['theme'] == theme]):
                         with cols[i % 2]:
